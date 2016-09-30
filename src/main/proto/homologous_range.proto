@@ -1,0 +1,82 @@
+/*
+ * Copyright 2016 Verily Life Sciences LLC.
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ * http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+// Protos used in coordinate transformations between genome assemblies.
+syntax = "proto3";
+package com.verily.genomewarp;
+
+import "google/genomics/v1/range.proto";
+import "google/genomics/v1/variants.proto";
+
+option java_package = "com.verily.genomewarp";
+
+// Message that links a genomic range within a query genome assembly to its
+// corresponding region in a target genome assembly. The structure is required
+// for transformation of gVCF or VCF+confident region BED files from one
+// assembly to another.
+// Next ID: 5
+message HomologousRange {
+  // The range of the region in the query genome assembly.
+  google.genomics.v1.Range query_range = 1;
+
+  // The range of the region in the target genome assembly.
+  google.genomics.v1.Range target_range = 2;
+
+  // The genome strand on which the target range aligns. By convention, the
+  // query assembly is always on the positive strand. This value is required
+  // for reverse complement and general alignment-based coordinate
+  // transformations.
+  enum TargetStrand {
+    UNKNOWN_TARGET_STRAND = 0;
+    POSITIVE_STRAND = 1;
+    NEGATIVE_STRAND = 2;
+  }
+  TargetStrand target_strand = 3;
+
+  // The type of the region, indicating the complexity required to perform
+  // the variant coordinate transform.
+  enum RegionType {
+    UNKNOWN_REGION_TYPE = 0;
+    // Sequences are identical between genomes
+    IDENTICAL = 1;
+
+    // This has mismatches but no indels
+    MISMATCHED_BASES = 4;
+
+    // This requires full alignment
+    ALIGNMENT_REQUIRED = 3;
+  }
+  RegionType region_type = 4;
+}
+
+// Message that contains Variants on the target genome assembly and a status
+// indicating whether the variants were successfully transformed or not.
+// Next ID: 3
+message TransformedVariants {
+  // The status of the transformation attempt.
+  enum TransformationStatus {
+    UNKNOWN_TRANSFORMATION_STATUS = 0;
+    // Successful transformation to the target assembly
+    SUCCESS = 1;
+
+    // Unsuccessful transformation
+    FAILURE = 2;
+  }
+  TransformationStatus status = 1;
+
+  // The list of transformed variants.
+  repeated google.genomics.v1.Variant variants = 2;
+}
