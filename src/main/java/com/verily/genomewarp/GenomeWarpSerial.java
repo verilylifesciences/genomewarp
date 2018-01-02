@@ -29,6 +29,7 @@ import com.verily.genomewarp.HomologousRangeOuterClass.HomologousRange.TargetStr
 import com.verily.genomewarp.utils.Fasta;
 import com.verily.genomewarp.utils.GenomeRange;
 import com.verily.genomewarp.utils.GenomeWarpUtils;
+import com.verily.genomewarp.utils.GvcfToVcfAndBed;
 import com.verily.genomewarp.utils.VariantToVcf;
 import com.verily.genomewarp.utils.VcfToVariant;
 import htsjdk.samtools.liftover.LiftOver;
@@ -715,9 +716,23 @@ public final class GenomeWarpSerial {
     List<HomologousRange> namedRegions = null;
     Fasta queryFasta = null, targetFasta = null;
 
+    // Solve Issue #2 - Check if VCS is a gVCF and if so extract 1) variant-only VCF, 2) BED file
+    logger.log(Level.INFO, "Checking and processing gVCF");
+    boolean haveGvcf = false;
+    final String vcfFromGvcf = ARGS.workDir + File.separator + "from_gvcf.vcf";
+    final String bedFromGvcf = ARGS.workDir + File.separator + "from_gvcf.bed";
+    try {
+      haveGvcf = GvcfToVcfAndBed.saveVcfAndBedFromGvcf(ARGS.rawQueryVcf, vcfFromGvcf, bedFromGvcf);
+    } catch (IOException ex) {
+      fail("failed to read gVCF/write VCF or BED files: " + ex.getMessage());
+    }
+    if (haveGvcf) {
+      logger.log(Level.INFO, "Recognized gVCF format - using extracted VCF and BED files as input");
+    }
+
     logger.log(Level.INFO, "Creating FASTA structure and jump table");
     try {
-      headerStrings = retrieveVcfHeader(ARGS.rawQueryVcf);
+      headerStrings = retrieveVcfHeader(haveGvcf ? vcfFromGvcf : ARGS.rawQueryVcf);
       queryFasta = new Fasta(ARGS.refQueryFASTA);
       targetFasta = new Fasta(ARGS.refTargetFASTA);
     } catch (IOException ex) {
@@ -725,7 +740,8 @@ public final class GenomeWarpSerial {
     }
 
     if (!ARGS.onlyGenomeWarp) {
-      namedRegions = processAndSaveBed(ARGS.rawQueryBed, queryFasta, targetFasta);
+      namedRegions =
+          processAndSaveBed(haveGvcf ? bedFromGvcf : ARGS.rawQueryBed, queryFasta, targetFasta);
     } else {
       logger.log(Level.INFO, "Region data from files");
       BufferedReader regionsFile = null;
@@ -754,7 +770,8 @@ public final class GenomeWarpSerial {
     Map<Integer, List<String>> queryChr = new HashMap<>();
     Map<Integer, List<String>> targetChr = new HashMap<>();
     try {
-      BufferedReader vcfFile = Files.newBufferedReader(Paths.get(ARGS.rawQueryVcf), UTF_8);
+      BufferedReader vcfFile =
+          Files.newBufferedReader(Paths.get(haveGvcf ? vcfFromGvcf : ARGS.rawQueryVcf), UTF_8);
       groupedVariants = GenomeWarpUtils.associateVariantsWithRange(namedRegions, vcfFile);
       logger.log(Level.INFO, "Saving into discrete files of ~50000 variants");
       mapping = saveToFile(groupedVariants, headerStrings, queryChr, targetChr);
@@ -765,7 +782,8 @@ public final class GenomeWarpSerial {
     /**
      * Begin actual GenomeWarping
      */
-    VCFFileReader vcfReader = new VCFFileReader(new File(ARGS.rawQueryVcf), false);
+    VCFFileReader vcfReader =
+        new VCFFileReader(new File(haveGvcf ? vcfFromGvcf : ARGS.rawQueryVcf), false);
     VCFHeader vcfHeader = vcfReader.getFileHeader();
     ArrayList<String> vcfSampleNames = vcfHeader.getSampleNamesInOrder();
     if (vcfSampleNames.size() == 0) {
