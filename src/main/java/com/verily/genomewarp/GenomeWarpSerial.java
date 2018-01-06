@@ -152,7 +152,10 @@ public final class GenomeWarpSerial {
 
     @Parameter(description = "Species this VCF file belongs to", names = "--species")
     public String species = "Homo sapiens";
-  }
+
+    @Parameter(description = "Path to uncompressed raw query gVCF file", names = "--raw_query_gvcf")
+    public String rawQueryGvcf = null;
+}
 
   // Used exclusively to facilitate storing
   private class RefNameToLength {
@@ -717,22 +720,35 @@ public final class GenomeWarpSerial {
     Fasta queryFasta = null, targetFasta = null;
 
     // Solve Issue #2 - Check if VCS is a gVCF and if so extract 1) variant-only VCF, 2) BED file
-    logger.log(Level.INFO, "Checking and processing gVCF");
-    boolean haveGvcf = false;
-    final String vcfFromGvcf = ARGS.workDir + File.separator + "from_gvcf.vcf";
-    final String bedFromGvcf = ARGS.workDir + File.separator + "from_gvcf.bed";
-    try {
-      haveGvcf = GvcfToVcfAndBed.saveVcfAndBedFromGvcf(ARGS.rawQueryVcf, vcfFromGvcf, bedFromGvcf);
-    } catch (IOException ex) {
-      fail("failed to read gVCF/write VCF or BED files: " + ex.getMessage());
-    }
+    boolean haveGvcf = ARGS.rawQueryGvcf != null;
+    final String queryVcfToProcess;
+    final String queryBedToProcess;
     if (haveGvcf) {
+      queryVcfToProcess = ARGS.workDir + File.separator + "from_gvcf.vcf";
+      queryBedToProcess = ARGS.workDir + File.separator + "from_gvcf.bed";
+      if (ARGS.rawQueryVcf != null || ARGS.rawQueryBed != null) {
+        fail("Arguments (--raw_query_vcf, --raw_query_bed) and --raw_query_gvcf"
+            + " are mutually exclusive");
+      }
+      logger.log(Level.INFO, "Checking and processing gVCF");
+      if (!GvcfToVcfAndBed.saveVcfAndBedFromGvcf(ARGS.rawQueryGvcf, queryVcfToProcess,
+          queryBedToProcess)) {
+        fail("Failed to read gVCF/write VCF or BED files");
+      }
       logger.log(Level.INFO, "Recognized gVCF format - using extracted VCF and BED files as input");
-    }
-
+    } else {
+      // regular VCF
+      if (ARGS.rawQueryVcf == null || ARGS.rawQueryBed == null) {
+        fail("Both arguments --raw_query_vcf and --raw_query_bed must be specified"
+            + " for non-gVCF files");
+      }
+      queryVcfToProcess = ARGS.rawQueryVcf;
+      queryBedToProcess = ARGS.rawQueryBed;
+    }      
+ 
     logger.log(Level.INFO, "Creating FASTA structure and jump table");
     try {
-      headerStrings = retrieveVcfHeader(haveGvcf ? vcfFromGvcf : ARGS.rawQueryVcf);
+      headerStrings = retrieveVcfHeader(queryVcfToProcess);
       queryFasta = new Fasta(ARGS.refQueryFASTA);
       targetFasta = new Fasta(ARGS.refTargetFASTA);
     } catch (IOException ex) {
@@ -740,8 +756,7 @@ public final class GenomeWarpSerial {
     }
 
     if (!ARGS.onlyGenomeWarp) {
-      namedRegions =
-          processAndSaveBed(haveGvcf ? bedFromGvcf : ARGS.rawQueryBed, queryFasta, targetFasta);
+      namedRegions = processAndSaveBed(queryBedToProcess, queryFasta, targetFasta);
     } else {
       logger.log(Level.INFO, "Region data from files");
       BufferedReader regionsFile = null;
@@ -771,7 +786,7 @@ public final class GenomeWarpSerial {
     Map<Integer, List<String>> targetChr = new HashMap<>();
     try {
       BufferedReader vcfFile =
-          Files.newBufferedReader(Paths.get(haveGvcf ? vcfFromGvcf : ARGS.rawQueryVcf), UTF_8);
+          Files.newBufferedReader(Paths.get(queryVcfToProcess), UTF_8);
       groupedVariants = GenomeWarpUtils.associateVariantsWithRange(namedRegions, vcfFile);
       logger.log(Level.INFO, "Saving into discrete files of ~50000 variants");
       mapping = saveToFile(groupedVariants, headerStrings, queryChr, targetChr);
@@ -783,7 +798,7 @@ public final class GenomeWarpSerial {
      * Begin actual GenomeWarping
      */
     VCFFileReader vcfReader =
-        new VCFFileReader(new File(haveGvcf ? vcfFromGvcf : ARGS.rawQueryVcf), false);
+        new VCFFileReader(new File(queryVcfToProcess), false);
     VCFHeader vcfHeader = vcfReader.getFileHeader();
     ArrayList<String> vcfSampleNames = vcfHeader.getSampleNamesInOrder();
     if (vcfSampleNames.size() == 0) {
