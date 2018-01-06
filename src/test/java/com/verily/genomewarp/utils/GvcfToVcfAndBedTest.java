@@ -17,7 +17,9 @@ package com.verily.genomewarp.utils;
 import static java.nio.charset.StandardCharsets.UTF_8;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
+import static org.junit.Assert.fail;
 import java.io.BufferedReader;
 import java.io.File;
 import java.io.IOException;
@@ -51,36 +53,27 @@ public final class GvcfToVcfAndBedTest {
     assertTrue(GvcfToVcfAndBed.saveVcfAndBedFromGvcf(rawQueryGvcf, outVcf, outBed));
 
     // compare files line by line
-    String line1, line2;
-
-    // compare VCF files
+    // VCF
     File expVcf =
         new File(GvcfToVcfAndBedTest.class.getClassLoader().getResource(EXPECTED_VCF).getFile());
     try (
         BufferedReader expVcfBR =
             Files.newBufferedReader(Paths.get(expVcf.getCanonicalPath()), UTF_8);
         BufferedReader gotVcfBR = Files.newBufferedReader(Paths.get(outVcf), UTF_8)) {
-      while ((line1 = gotVcfBR.readLine()) != null) {
-        line2 = expVcfBR.readLine();
-        assertTrue(line2 != null);
-        assertEquals(line1, line2);
-      }
-      assertTrue(expVcfBR.readLine() == null);
+      assertBufferedReadersEqual(expVcfBR, gotVcfBR);
+    } catch (IOException ex) {
+      fail("Caught exception: " + ex.toString());
     }
-
-    // compare BED files
+    // BED
     File expBed =
         new File(GvcfToVcfAndBedTest.class.getClassLoader().getResource(EXPECTED_BED).getFile());
     try (
         BufferedReader expBedBR =
             Files.newBufferedReader(Paths.get(expBed.getCanonicalPath()), UTF_8);
-        BufferedReader gotBedBR = Files.newBufferedReader(Paths.get(outBed), UTF_8);) {
-      while ((line1 = gotBedBR.readLine()) != null) {
-        line2 = expBedBR.readLine();
-        assertTrue(line2 != null);
-        assertEquals(line1, line2);
-      }
-      assertTrue(expBedBR.readLine() == null);
+        BufferedReader gotBedBR = Files.newBufferedReader(Paths.get(outBed), UTF_8)) {
+      assertBufferedReadersEqual(expBedBR, gotBedBR);
+    } catch (IOException ex) {
+      fail("Caught exception: " + ex.toString());
     }
   }
 
@@ -88,7 +81,7 @@ public final class GvcfToVcfAndBedTest {
   public void testSaveVcfAndBedFromCanonicalVcf() throws IOException {
     File sampleGvcf =
         new File(GvcfToVcfAndBedTest.class.getClassLoader().getResource(EXPECTED_VCF).getFile());
-    assertFalse(extractFromSampleGvcf(sampleGvcf));
+    assertTrue(extractFromSampleGvcf(sampleGvcf));
   }
 
   @Test
@@ -99,7 +92,7 @@ public final class GvcfToVcfAndBedTest {
   }
 
   /**
-   * Auxiliary function
+   * Auxiliary function - extracts BED and VCF files from sample gVCF
    * 
    * @param sampleGvcf sample gVCF
    * @return true if gVCF processed successfully
@@ -111,5 +104,22 @@ public final class GvcfToVcfAndBedTest {
     String outVcf = tempFolderPath + File.separator + "from_gvcf.vcf";
     String outBed = tempFolderPath + File.separator + "from_gvcf.bed";
     return GvcfToVcfAndBed.saveVcfAndBedFromGvcf(rawQueryGvcf, outVcf, outBed);
+  }
+  
+  /**
+   * Auxiliary function - asserts equality of two BufferedReaders
+   * 
+   * @param r1 BufferedReader #1
+   * @param r2 BufferedReader #2
+   * @throws IOException
+   */
+  private void assertBufferedReadersEqual(BufferedReader r1, BufferedReader r2) throws IOException {
+    String line1;
+    String line2;
+    while ((line1 = r1.readLine()) != null) {
+      line2 = r2.readLine();
+      assertEquals(line1, line2);
+    }
+    assertNull(r2.readLine());
   }
 }

@@ -32,6 +32,7 @@ public class GvcfToVcfAndBed {
   private static final Logger logger = Logger.getLogger(GvcfToVcfAndBed.class.getName());
   
   private static final int MIN_VCF_FIELDS = 8;
+  private static final int CHROM_FIELD_INDEX = 0;
   private static final int START_FIELD_INDEX = 1;
   private static final int END_FIELD_INDEX = 3;
   private static final int ALT_BASES_FIELD_INDEX = 4;
@@ -44,7 +45,6 @@ public class GvcfToVcfAndBed {
   private static final String PASS_FILTER_VALUE = "PASS";
   private static final String FORMAT_FIELD_SEP_REGEX = ";";
   private static final String FORMAT_END_KEY = "END";
-  private static final int CHROM_FIELD_INDEX = 0;
   private static final String BED_FIELD_SEP_STR = "\t";
   
   /**
@@ -58,75 +58,76 @@ public class GvcfToVcfAndBed {
   public static boolean saveVcfAndBedFromGvcf(String rawQueryGvcf, String vcfFromGvcf,
       String bedFromGvcf) {
     String line;
-    boolean isSuccessfulGvcf = false;
+    boolean successfullyParsedGvcf = true;
     Long lineNum = 0L;
+    Path bedFromGvcfPath = null;
+    Path vcfFromGvcfPath = null;
+    Path rawQueryGvcfPath = null;
     try {
-      Path bedFromGvcfPath = Paths.get(bedFromGvcf);
-      Path vcfFromGvcfPath = Paths.get(vcfFromGvcf);
-      Path rawQueryGvcfPath = Paths.get(rawQueryGvcf);
-      try (PrintWriter outVcf = new PrintWriter(Files.newBufferedWriter(vcfFromGvcfPath, UTF_8));
-          PrintWriter outBed = new PrintWriter(Files.newBufferedWriter(bedFromGvcfPath, UTF_8));
-          BufferedReader br = Files.newBufferedReader(rawQueryGvcfPath, UTF_8)) {
-        while ((line = br.readLine()) != null) {
-          // parse line and write it to VCF or BED or none
-          lineNum++;
-          if (line.startsWith(HEADER_START_STR)) {
-            // header
+      bedFromGvcfPath = Paths.get(bedFromGvcf);
+      vcfFromGvcfPath = Paths.get(vcfFromGvcf);
+      rawQueryGvcfPath = Paths.get(rawQueryGvcf);
+    } catch (Exception ex) {
+      // at least one invalid path
+      logger.log(Level.SEVERE, "Caught exception: " + ex.toString());
+      return false;
+    }
+
+    try (PrintWriter outVcf = new PrintWriter(Files.newBufferedWriter(vcfFromGvcfPath, UTF_8));
+        PrintWriter outBed = new PrintWriter(Files.newBufferedWriter(bedFromGvcfPath, UTF_8));
+        BufferedReader br = Files.newBufferedReader(rawQueryGvcfPath, UTF_8)) {
+      while ((line = br.readLine()) != null) {
+        // parse line and write it to VCF or BED or none
+        lineNum++;
+        if (line.startsWith(HEADER_START_STR)) {
+          // header
+          outVcf.println(line);
+        } else {
+          // not a header - choose destination according to columns
+          String[] fields = line.split(FIELD_SEP_REGEX);
+          if (fields.length < MIN_VCF_FIELDS) {
+            throw new IOException("input VCF file has less than " + MIN_VCF_FIELDS + " columns,"
+                + " line #" + lineNum);
+          }
+          String altBases = fields[ALT_BASES_FIELD_INDEX];
+          if (isVariantRecord(altBases)) {
+            // variant VCF file
             outVcf.println(line);
-          } else {
-            // not a header - choose destination according to columns
-            String[] fields = line.split(FIELD_SEP_REGEX);
-            if (fields.length < MIN_VCF_FIELDS) {
-              throw new IOException("input VCF file has less than " + MIN_VCF_FIELDS + " columns");
-            }
-            String f5 = fields[ALT_BASES_FIELD_INDEX];
-            if (isVariantRecord(f5)) {
-              // variant VCF file
-              outVcf.println(line);
-            }
-            if (PASS_FILTER_VALUE.equals(fields[FILTER_FIELD_INDEX])) {
-              // BED file - compute line
-              try {
-                String bedLine = bedLineFromVcfFields(fields);
-                outBed.println(bedLine);
-                // query file is a gVCF
-                if (!isSuccessfulGvcf) {
-                  isSuccessfulGvcf = true;
-                }
-              } catch (NumberFormatException ex) {
-                throw new IOException("malformed integer column in input VCF, line #" + lineNum);
-              }
-            }
           }
-        }
-      } catch (Exception ex) {
-        logger.log(Level.SEVERE, "Caught exception: " + ex.toString());
-        isSuccessfulGvcf = false;
-      }
-      if (!isSuccessfulGvcf) {
-        logger.log(Level.INFO,
-            "gVCF query file processing error or not a gVCF - removing intermediate files");
-        // remove intermediate files
-        if (Files.exists(vcfFromGvcfPath)) {
-          try {
-            Files.delete(vcfFromGvcfPath);
-          } catch (IOException ex) {
-            logger.log(Level.INFO, "Failed to delete VCF intermediate file: " + ex.toString());
-          }
-        }
-        if (Files.exists(bedFromGvcfPath)) {
-          try {
-            Files.delete(bedFromGvcfPath);
-          } catch (IOException ex) {
-            logger.log(Level.INFO, "Failed to delete BED intermediate file: " + ex.toString());
+          if (PASS_FILTER_VALUE.equals(fields[FILTER_FIELD_INDEX])) {
+            // BED file - compute line
+            try {
+              outBed.println(bedLineFromVcfFields(fields));
+            } catch (NumberFormatException ex) {
+              throw new IOException("malformed integer column in input VCF, line #" + lineNum);
+            }
           }
         }
       }
     } catch (Exception ex) {
-      // at least one invalid path
       logger.log(Level.SEVERE, "Caught exception: " + ex.toString());
+      successfullyParsedGvcf = false;
     }
-    return isSuccessfulGvcf;
+    if (!successfullyParsedGvcf) {
+      logger.log(Level.INFO,
+          "gVCF query file processing error or not a gVCF - removing intermediate files");
+      // remove intermediate files
+      if (Files.exists(vcfFromGvcfPath)) {
+        try {
+          Files.delete(vcfFromGvcfPath);
+        } catch (IOException ex) {
+          logger.log(Level.INFO, "Failed to delete VCF intermediate file: " + ex.toString());
+        }
+      }
+      if (Files.exists(bedFromGvcfPath)) {
+        try {
+          Files.delete(bedFromGvcfPath);
+        } catch (IOException ex) {
+          logger.log(Level.INFO, "Failed to delete BED intermediate file: " + ex.toString());
+        }
+      }
+    }
+    return successfullyParsedGvcf;
   }
 
   /**
@@ -146,13 +147,13 @@ public class GvcfToVcfAndBed {
     // hence the -1L here.
     Long start = Long.parseLong(fields[START_FIELD_INDEX]) - 1L;
     Long end = start + fields[END_FIELD_INDEX].length();
-    String f8 = fields[FORMAT_FIELD_INDEX];
-    String[] f8Flds = f8.split(FORMAT_FIELD_SEP_REGEX);
-    int n = f8Flds.length;
+    String rawFormatField = fields[FORMAT_FIELD_INDEX];
+    String[] formatFieldTokens = rawFormatField.split(FORMAT_FIELD_SEP_REGEX);
+    int n = formatFieldTokens.length;
     for (int i = 0; i < n; i++) {
-      String f8Fi = f8Flds[i];
-      if (f8Fi.startsWith(FORMAT_END_KEY + "=")) {
-        String endStr = f8Fi.substring(FORMAT_END_KEY.length() + 1);
+      String token = formatFieldTokens[i];
+      if (token.startsWith(FORMAT_END_KEY + "=")) {
+        String endStr = token.substring(FORMAT_END_KEY.length() + 1);
         end = Long.parseLong(endStr);
       }
     }

@@ -723,13 +723,20 @@ public final class GenomeWarpSerial {
     boolean haveGvcf = ARGS.rawQueryGvcf != null;
     final String queryVcfToProcess;
     final String queryBedToProcess;
+    // Query input flag validation.
+    if (haveGvcf && (ARGS.rawQueryVcf != null || ARGS.rawQueryBed != null)) {
+      fail(
+          "Arguments (--raw_query_vcf, --raw_query_bed) and --raw_query_gvcf are mutually exclusive");
+    }
+    if ((ARGS.rawQueryVcf == null) != (ARGS.rawQueryBed == null)) {
+      fail("Either both or neither of --raw_query_vcf and --raw_query_bed must be specified");
+    }
+    if (ARGS.rawQueryGvcf == null && ARGS.rawQueryVcf == null) {
+      fail("Either (--raw_query_vcf, --raw_query_bed) or --raw_query_gvcf must be specified");
+    }
     if (haveGvcf) {
       queryVcfToProcess = ARGS.workDir + File.separator + "from_gvcf.vcf";
       queryBedToProcess = ARGS.workDir + File.separator + "from_gvcf.bed";
-      if (ARGS.rawQueryVcf != null || ARGS.rawQueryBed != null) {
-        fail("Arguments (--raw_query_vcf, --raw_query_bed) and --raw_query_gvcf"
-            + " are mutually exclusive");
-      }
       logger.log(Level.INFO, "Checking and processing gVCF");
       if (!GvcfToVcfAndBed.saveVcfAndBedFromGvcf(ARGS.rawQueryGvcf, queryVcfToProcess,
           queryBedToProcess)) {
@@ -738,10 +745,6 @@ public final class GenomeWarpSerial {
       logger.log(Level.INFO, "Recognized gVCF format - using extracted VCF and BED files as input");
     } else {
       // regular VCF
-      if (ARGS.rawQueryVcf == null || ARGS.rawQueryBed == null) {
-        fail("Both arguments --raw_query_vcf and --raw_query_bed must be specified"
-            + " for non-gVCF files");
-      }
       queryVcfToProcess = ARGS.rawQueryVcf;
       queryBedToProcess = ARGS.rawQueryBed;
     }      
