@@ -1,0 +1,8 @@
+##fileformat=VCFv4.1
+#CHROM	POS	ID	REF	ALT	QUAL	FILTER	INFO	FORMAT	NA12889
+chr1	50	.	A	T	.	.	.	.	.
+chr1	52	.	G	T	.	.	.	.	.
+chr1	120	.	ACG	T	.	.	.	.	.
+chr1	137	.	A	TAA	.	.	.	.	.
+chr1	190	.	C	T,GG	.	.	.	.	.
+chr2	140	.	CC	AC	.	.	.	.	.
