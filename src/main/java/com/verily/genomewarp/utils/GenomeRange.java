@@ -99,6 +99,19 @@ public class GenomeRange implements Comparable<GenomeRange>{
         && (end == range.getEnd());
   }
 
+  public boolean includes(GenomeRange range) {
+    return range != null && chromosome.equals(range.getChromosome()) && start <= range.getStart()
+        && end >= range.getEnd();
+  }
+
+  public GenomeRange getIntersection(GenomeRange range) {
+    if (!this.overlaps(range)) {
+      return null;
+    }
+    return new GenomeRange(chromosome, Math.max(start, range.getStart()),
+        Math.min(end, range.getEnd()));
+  }
+
   @Override
   public String toString() {
     return String.format("%s\t%s\t%s\t%s\t.\t%s", chromosome, start, end, name,

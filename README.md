@@ -110,7 +110,7 @@ it generates two output files:
 The program is executed as follows:
 
 ```bash
-java -jar target/verilylifesciences-genomewarp-1.0.0-runnable.jar \
+java -jar target/verilylifesciences-genomewarp-1.1.0-runnable.jar \
   --lift_over_chain_path "${chain}" \
   --raw_query_vcf "${queryvcf}" \
   --raw_query_bed "${querybed}" \

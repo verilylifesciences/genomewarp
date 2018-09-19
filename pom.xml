@@ -22,7 +22,7 @@
   <groupId>com.verily.genomewarp</groupId>
   <artifactId>verilylifesciences-genomewarp</artifactId>
   <name>Verily Life Sciences GenomeWarp</name>
-  <version>1.0.0</version>
+  <version>1.1.0</version>
   <description>GenomeWarp and associated utility libraries. Utility libraries
     include VcfToVariant and VariantToVcf, which are used to convert between
     VCF-formatted files and Variant V1 protos.</description>
