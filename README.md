@@ -134,7 +134,3 @@ unambiguous mapping. The guarantee GenomeWarp provides is that all
 confidently-called regions in the target assembly faithfully reproduce the same
 haplotypes as were provided in the query assembly (i.e., GenomeWarp gives 100%
 specificity at a possible sacrifice to sensitivity).
-
-GenomeWarp currently handles variant-only VCF files (i.e. gVCFs are not
-supported). A gVCF can be processed using the workaround [described
-here](https://github.com/verilylifesciences/genomewarp/issues/2).
