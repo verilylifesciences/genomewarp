@@ -193,7 +193,7 @@ public final class GenomeWarpSerial {
 
   private static final VCFHeaderVersion DEFAULT_VCF_VERSION = VCFHeaderVersion.VCF4_2;
 
-  private static final String GENOME_WARP_VERSION = "GenomeWarp_v1.1.0";
+  private static final String GENOME_WARP_VERSION = "GenomeWarp_v1.2.0";
 
   private static final String VCF_PART_NAME = "/vcfChunk.vcf.part";
 
