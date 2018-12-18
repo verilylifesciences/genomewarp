@@ -125,6 +125,8 @@ When run, logging statements provide progress indications. GenomeWarp should
 convert a single-sample VCF containing millions of variants genome-wide in under
 30 minutes.
 
+Run the program with no arguments to see the usage message and additional flags.
+
 ## Notes
 There are multiple reasons why a confidently-called region in the query assembly
 (and any variants therein) may not appear in the target assembly. GenomeWarp is
