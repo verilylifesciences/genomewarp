@@ -237,7 +237,7 @@ public class GenomeWarpUtils {
    * Given a BufferedReader encoding a file of variants, asssociate the string
    * representation of the variants with a region. This association is done by
    * mapping each region to all variants which share the same reference name
-   * (chromosome) and who's start coordiante is within the region.
+   * (chromosome) and whose start coordinate is within the region.
    *
    * @param regions the list of regions to use as the map's keys
    * @param vcfFile a BufferedReader encoding the input variants

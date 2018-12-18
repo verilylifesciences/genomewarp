@@ -36,9 +36,10 @@ public class GenomeRangeUtils {
    *
    * @param refFasta the reference genome, containing the string bases
    * @param bed a BufferedReader containing the range reads
+   * @param queryChroms the set of query chromosomes to include
    * @return a hashmap of chromosome to arraylist of GenomeRanges only containing valid DNA characters
    */
-  public static SortedMap<String, List<GenomeRange>> splitAtNonDNA(Fasta refFasta, BufferedReader bed)
+  public static SortedMap<String, List<GenomeRange>> splitAtNonDNA(Fasta refFasta, BufferedReader bed, Set<String> queryChroms)
       throws IOException {
 
     String line;
@@ -52,6 +53,11 @@ public class GenomeRangeUtils {
       }
 
       String chr = range[0];
+
+      if (!GenomeWarpSerial.shouldWarpChromosome(queryChroms, chr)) {
+        continue;
+      }
+
       long start = Long.parseLong(range[1]);
       long end = Long.parseLong(range[2]);
 
@@ -97,11 +103,16 @@ public class GenomeRangeUtils {
    * For each variant in the input VCF, it will create a region corresponding to the this variant.
    *
    * @param vcfReader the input VCF file reader
+   * @param chromosomes the set of chromosomes to consider
    * @return a map of chromosome to the list of GenomeRanges corresponding to the variants in the input VCF
    */
-  public static SortedMap<String, List<GenomeRange>> generateBEDFromVCF(VCFFileReader vcfReader) {
+  public static SortedMap<String, List<GenomeRange>> generateBEDFromVCF(VCFFileReader vcfReader, Set<String> chromosomes) {
     SortedMap<String, List<GenomeRange>> toReturn = new TreeMap<>();
     for (final VariantContext var: vcfReader) {
+      if (!GenomeWarpSerial.shouldWarpChromosome(chromosomes, var.getChr())) {
+        continue;
+      }
+
       // TODO: check that start and end positions are valid
       // htsjdk start/end are both 1-based closed
       GenomeRange curr = new GenomeRange(var.getChr(),
@@ -457,7 +468,7 @@ public class GenomeRangeUtils {
     VCFFileReader vcfReader = new VCFFileReader(new File(inputVcf), false);
 
     logger.log(Level.INFO, "Generating regions from variants");
-    SortedMap<String, List<GenomeRange>> fromVcfBEDPerChromosome = generateBEDFromVCF(vcfReader);
+    SortedMap<String, List<GenomeRange>> fromVcfBEDPerChromosome = generateBEDFromVCF(vcfReader, inputBEDPerChromosome.keySet());
 
     for (String chromosome: inputBEDPerChromosome.keySet()) {
       List<GenomeRange> inputBEDChr = inputBEDPerChromosome.get(chromosome);

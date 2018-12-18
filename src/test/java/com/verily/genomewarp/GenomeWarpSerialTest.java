@@ -143,7 +143,7 @@ public final class GenomeWarpSerialTest {
 
       // Get test result
       SortedMap<String, List<GenomeRange>> got =
-          GenomeRangeUtils.splitAtNonDNA(testFasta, testBED);
+          GenomeRangeUtils.splitAtNonDNA(testFasta, testBED, null);
 
       assertEquals(got.size(), want.size());
       for(String key: got.keySet()) {
@@ -169,7 +169,7 @@ public final class GenomeWarpSerialTest {
         }});
       }};
 
-      SortedMap<String, List<GenomeRange>> got = GenomeRangeUtils.generateBEDFromVCF(testVcf);
+      SortedMap<String, List<GenomeRange>> got = GenomeRangeUtils.generateBEDFromVCF(testVcf, null);
       assertEquals(got.size(), want.size());
       for(String key: got.keySet()) {
         assertTrue(GenomeWarpTestUtils.equivalentRanges(got.get(key), want.get(key)));
