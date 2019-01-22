@@ -114,6 +114,13 @@ public final class GenomeWarpSerial {
     public String workDir = null;
 
     @Parameter(
+      description = "Query chromosomes to warp. A comma-separated list of chromosomes, e.g. 'chr1,chr2'. "
+      + "If unspecified, all regions and variants are attempted.",
+      names = "--query_chroms_to_warp"
+    )
+    public String queryChromsToWarp = null;
+
+    @Parameter(
       description = "Keep homozygous reference calls",
       names = "--keep_homozygous_reference_calls"
     )
@@ -186,7 +193,7 @@ public final class GenomeWarpSerial {
 
   private static final VCFHeaderVersion DEFAULT_VCF_VERSION = VCFHeaderVersion.VCF4_2;
 
-  private static final String GENOME_WARP_VERSION = "GenomeWarp_v1.1.0";
+  private static final String GENOME_WARP_VERSION = "GenomeWarp_v1.2.0";
 
   private static final String VCF_PART_NAME = "/vcfChunk.vcf.part";
 
@@ -206,6 +213,33 @@ public final class GenomeWarpSerial {
     return headerStrings;
   }
 
+  /**
+   * Returns a set of all query chromosomes to attempt to warp.
+   *
+   * @param toWarp a comma-separated string of query chromosomes to warp, or null if all should be warped
+   * @return a Set of chromosomes to warp, or null if all should be warped
+   */
+  private static Set<String> parseQueryChromsToWarp(String toWarp) {
+    if (toWarp == null) return null;
+
+    Set<String> retval = new HashSet<>();
+    for (String token : toWarp.split(",")) {
+      retval.add(token.trim());
+    }
+    return retval;
+  }
+
+  /**
+   * Returns true if and only if the chromosome should be warped.
+   * 
+   * @param chromosomesToWarp a set of chromosomes to warp, or null if all should be warped
+   * @param chrom the chromosome of interest
+   * @return true if chrom should be warped
+   */
+  public static boolean shouldWarpChromosome(Set<String> chromosomesToWarp, String chrom) {
+    if (chromosomesToWarp == null) return true;
+    return chromosomesToWarp.contains(chrom);
+  }
 
   public static RegionType getRegionType(HomologousRange range, Fasta queryFasta,
       Fasta targetFasta) {
@@ -450,7 +484,7 @@ public final class GenomeWarpSerial {
    */
   private static List<HomologousRange> processAndSaveBed(String inputBed, String inputVcf,
       Fasta queryFasta,
-      Fasta targetFasta) {
+      Fasta targetFasta, Set<String> queryChromosomesToRetain) {
     // Open necessary readers
     BufferedReader bedReader = null;
     boolean simplifiedPreprocessing = ARGS.simplifiedRegionsPreprocessing;
@@ -466,7 +500,7 @@ public final class GenomeWarpSerial {
     logger.log(Level.INFO, "Split DNA at non-DNA characters");
     SortedMap<String, List<GenomeRange>> dnaOnlyInputBEDPerChromosome = null;
     try {
-      if ((dnaOnlyInputBEDPerChromosome = GenomeRangeUtils.splitAtNonDNA(queryFasta, bedReader)) == null) {
+      if ((dnaOnlyInputBEDPerChromosome = GenomeRangeUtils.splitAtNonDNA(queryFasta, bedReader, queryChromosomesToRetain)) == null) {
         GenomeWarpUtils.fail(logger, "failed to generate reference genome");
       }
     } catch (IOException ex) {
@@ -574,6 +608,8 @@ public final class GenomeWarpSerial {
       queryVcfToProcess = ARGS.rawQueryVcf;
       queryBedToProcess = ARGS.rawQueryBed;
     }      
+
+    final Set<String> queryChromsToWarp = parseQueryChromsToWarp(ARGS.queryChromsToWarp);
  
     logger.log(Level.INFO, "Creating FASTA structure and jump table");
     try {
@@ -585,7 +621,7 @@ public final class GenomeWarpSerial {
     }
 
     if (!ARGS.onlyGenomeWarp) {
-      namedRegions = processAndSaveBed(queryBedToProcess, queryVcfToProcess, queryFasta, targetFasta);
+      namedRegions = processAndSaveBed(queryBedToProcess, queryVcfToProcess, queryFasta, targetFasta, queryChromsToWarp);
     } else {
       logger.log(Level.INFO, "Region data from files");
       BufferedReader regionsFile = null;
@@ -598,7 +634,10 @@ public final class GenomeWarpSerial {
         String line;
         namedRegions = new ArrayList<>();
         while ((line = regionsFile.readLine()) != null) {
-          namedRegions.add(GenomeWarpUtils.homologousFromString(line));
+          HomologousRange currRegion = GenomeWarpUtils.homologousFromString(line);
+          if (shouldWarpChromosome(queryChromsToWarp, currRegion.getQueryRange().getReferenceName())) {
+            namedRegions.add(currRegion);
+          }
         }
 
         regionsFile.close();

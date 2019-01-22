@@ -110,7 +110,7 @@ it generates two output files:
 The program is executed as follows:
 
 ```bash
-java -jar target/verilylifesciences-genomewarp-1.1.0-runnable.jar \
+java -jar target/verilylifesciences-genomewarp-1.2.0-runnable.jar \
   --lift_over_chain_path "${chain}" \
   --raw_query_vcf "${queryvcf}" \
   --raw_query_bed "${querybed}" \
@@ -124,6 +124,8 @@ java -jar target/verilylifesciences-genomewarp-1.1.0-runnable.jar \
 When run, logging statements provide progress indications. GenomeWarp should
 convert a single-sample VCF containing millions of variants genome-wide in under
 30 minutes.
+
+Run the program with no arguments to see the usage message and additional flags.
 
 ## Notes
 There are multiple reasons why a confidently-called region in the query assembly
