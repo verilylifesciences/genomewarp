@@ -29,6 +29,79 @@ public class GenomeRangeUtils {
   private static final Logger logger = Logger.getLogger(GenomeRangeUtils.class.getName());
 
   /**
+   * Returns a map from chromosome to list of ranges present in the BED filtered by queryChrom.
+   *
+   *
+   * @param bed a BufferedReader containing the range reads
+   * @param queryChroms the set of query chromosomes to include
+   * @return a hashmap of chromosome to List of GenomeRanges on the requested chromosomes.
+   * @throws IllegalArgumentException if the BED does not have all ranges from a single chromosome
+   *   together.
+   */
+  public static SortedMap<String, List<GenomeRange>> getBedRanges(BufferedReader bed, Set<String> queryChroms) throws IllegalArgumentException, IOException {
+    String line;
+    String prevChr = "";
+    Set<String> seenChroms = new HashSet<>();
+    SortedMap<String, List<GenomeRange>> matchesPerChr = new TreeMap<>();
+    List<GenomeRange> currMatches = null;
+    while ((line = bed.readLine()) != null) {
+      String[] range = line.trim().split("\\s+");
+      if (range.length < 3) {
+        GenomeWarpUtils.fail(logger, "input BED file has less than 3 columns");
+      }
+
+      String chr = range[0];
+      if (!GenomeWarpSerial.shouldWarpChromosome(queryChroms, chr)) {
+        continue;
+      }
+
+      long start = Long.parseLong(range[1]);
+      long end = Long.parseLong(range[2]);
+
+      if (!chr.equals(prevChr)) {
+        if (!seenChroms.add(chr)) {
+          throw new IllegalArgumentException("BED does not have all ranges from " + chr + " in order.");
+        }
+        logger.log(Level.INFO, String.format("Now processing %s", chr));
+        prevChr = chr;
+        currMatches = new ArrayList<>();
+        matchesPerChr.put(chr, currMatches);
+      }
+      GenomeRange currRange = new GenomeRange(chr, start, end);
+      currMatches.add(currRange);
+    }
+    return matchesPerChr;
+  }
+
+  /**
+   * Returns true if and only if the map contains sorted, non-overlapping ranges.
+   */
+  public static boolean ensureSortedMergedRanges(SortedMap<String, List<GenomeRange>> rangesPerChr) {
+    for (List<GenomeRange> chromRanges : rangesPerChr.values()) {
+      long prevEnd = -1;
+      for (GenomeRange range : chromRanges) {
+        if (range.getStart() < prevEnd) {
+          return false;
+        }
+        prevEnd = range.getEnd();
+      }
+    }
+    return true;
+  }
+
+  /**
+   * Updates the input map to contain sorted, non-overlapping ranges.
+   */
+  public static void createSortedMergedRanges(SortedMap<String, List<GenomeRange>> rangesPerChr) {
+    for (String chromosome : rangesPerChr.keySet()) {
+      List<GenomeRange> chromRanges = rangesPerChr.get(chromosome);
+      Collections.sort(chromRanges);
+      List<GenomeRange> mergedRanges = mergeOverlaps(chromRanges);
+      rangesPerChr.put(chromosome, mergedRanges);
+    }
+  }
+
+  /**
    * Splits a given set of genome ranges at non-DNA characters
    *
    * <p> This function reads in ranges using a BufferedReader and splits
@@ -39,55 +112,34 @@ public class GenomeRangeUtils {
    * @param queryChroms the set of query chromosomes to include
    * @return a hashmap of chromosome to arraylist of GenomeRanges only containing valid DNA characters
    */
-  public static SortedMap<String, List<GenomeRange>> splitAtNonDNA(Fasta refFasta, BufferedReader bed, Set<String> queryChroms)
+  public static SortedMap<String, List<GenomeRange>> splitAtNonDNA(SortedMap<String, List<GenomeRange>> chromRanges, Fasta refFasta)
       throws IOException {
+    SortedMap<String, List<GenomeRange>> retval = new TreeMap<>();
+    for (SortedMap.Entry<String, List<GenomeRange>> entry : chromRanges.entrySet()) {
+      String chromosome = entry.getKey();
+      List<GenomeRange> currMatches = new ArrayList<>();
+      for (GenomeRange range : entry.getValue()) {
+        String chrSubSeq = refFasta.get(chromosome, range.getStart(), range.getEnd());
+        Matcher matchDNASeq = GenomeWarpUtils.dnaSequence.matcher(chrSubSeq);
 
-    String line;
-    String pastChr = "";
-    SortedMap<String, List<GenomeRange>> matchesPerChr = new TreeMap<>();
-    List<GenomeRange> currMatches = null;
-    while ((line = bed.readLine()) != null) {
-      String[] range = line.trim().split("\\s+");
-      if (range.length < 3) {
-        GenomeWarpUtils.fail(logger, "input BED file has less than 3 columns");
+        // Use the regex matcher to add subsequences which are
+        // valid DNA base runs to a match list
+        int splitNum = 0;
+        while (matchDNASeq.find()) {
+          GenomeRange currRange = new GenomeRange(chromosome, range.getStart() + matchDNASeq.start(),
+              range.getStart() + matchDNASeq.end());
+          currMatches.add(currRange);
+          splitNum++;
+        }
+        if (splitNum > 1) {
+          logger.log(Level.INFO,
+            String.format("%s (%d, %d) was split into %d regions", chromosome, range.getStart(), range.getEnd(), splitNum));
+        }
       }
-
-      String chr = range[0];
-
-      if (!GenomeWarpSerial.shouldWarpChromosome(queryChroms, chr)) {
-        continue;
-      }
-
-      long start = Long.parseLong(range[1]);
-      long end = Long.parseLong(range[2]);
-
-      if (!chr.equals(pastChr)) {
-        logger.log(Level.INFO, String.format("Now processing %s", chr));
-        pastChr = chr;
-        currMatches = new ArrayList<>();
-        matchesPerChr.put(chr, currMatches);
-      }
-
-      String chrSubSeq = refFasta.get(chr, start, end);
-      Matcher matchDNASeq = GenomeWarpUtils.dnaSequence.matcher(chrSubSeq);
-
-      // Use the regex matcher to add subsequences which are
-      // valid DNA base runs to a match list
-      int splitNum = 0;
-      while (matchDNASeq.find()) {
-        GenomeRange currRange = new GenomeRange(chr, start + matchDNASeq.start(),
-            start + matchDNASeq.end());
-        currMatches.add(currRange);
-        splitNum++;
-      }
-      if (splitNum > 1) {
-        logger.log(Level.INFO,
-          String.format("%s (%d, %d) was split into %d regions", chr, start, end, splitNum));
-      }
+      retval.put(chromosome, currMatches);
     }
-
     SortedMap<String, List<GenomeRange>> nonEmptyMatchesPerChr = new TreeMap<>();
-    for (SortedMap.Entry<String, List<GenomeRange>> entry: matchesPerChr.entrySet())
+    for (SortedMap.Entry<String, List<GenomeRange>> entry: retval.entrySet())
     {
       if (!entry.getValue().isEmpty()) {
         nonEmptyMatchesPerChr.put(entry.getKey(), entry.getValue());
@@ -113,8 +165,8 @@ public class GenomeRangeUtils {
         continue;
       }
 
-      // TODO: check that start and end positions are valid
-      // htsjdk start/end are both 1-based closed
+      // htsjdk start/end are both 1-based closed, so we subtract 1 from start to get
+      // a zero-based half open range.
       GenomeRange curr = new GenomeRange(var.getChr(),
               var.getStart() - 1, var.getEnd());
       if (!toReturn.containsKey(curr.getChromosome())) {

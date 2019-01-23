@@ -42,8 +42,10 @@ import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.SortedMap;
 import java.util.TreeMap;
 import org.junit.Rule;
@@ -83,11 +85,10 @@ public final class GenomeWarpSerialTest {
     private static final String FASTA_PATH = "test.fa";
     private static final String VCF_PATH = "test.vcf";
 
-
     private String fakeBED(String[][] in) {
       StringBuilder toReturn = new StringBuilder();
       for (int i = 0; i < in.length; i++) {
-        for (int j = 0; j < in[i].length; j++) {
+        for (int j = 0; j < in[0].length; j++) {
           toReturn.append(in[i][j] + "\t");
         }
         toReturn.append("\n");
@@ -96,11 +97,7 @@ public final class GenomeWarpSerialTest {
     }
 
     @Test
-    public void testSplitAtNonDNA() throws Exception {
-
-      Fasta testFasta =
-          new Fasta(GenomeWarpSerialTest.class.getClassLoader().getResource(FASTA_PATH).getFile());
-
+    public void testGetBedRanges() throws Exception {
       // Define mock BufferedReader
       String[][] inArray = {
         {"chr1", "10", "24"},
@@ -117,7 +114,163 @@ public final class GenomeWarpSerialTest {
       BufferedReader testBED = new BufferedReader(new InputStreamReader(stream, UTF_8));
 
       // Define desired result
-      SortedMap<String, List<GenomeRange>> want = new TreeMap<String, List<GenomeRange>>() {{
+      SortedMap<String, List<GenomeRange>> expected = new TreeMap<String, List<GenomeRange>>() {{
+        put("chr1", new ArrayList<GenomeRange>() {{
+            add(new GenomeRange("chr1", 10, 24));
+        }});
+        put("chr2", new ArrayList<GenomeRange>() {{
+          add(new GenomeRange("chr2", 5, 6));
+        }});
+        put("chr3", new ArrayList<GenomeRange>() {{
+          add(new GenomeRange("chr3", 9, 10));
+        }});
+        put("chr4", new ArrayList<GenomeRange>() {{
+          add(new GenomeRange("chr4", 9, 19));
+        }});
+        put("chr5", new ArrayList<GenomeRange>() {{
+          add(new GenomeRange("chr5", 10, 20));
+        }});
+        put("chr6", new ArrayList<GenomeRange>() {{
+          add(new GenomeRange("chr6", 30, 40));
+        }});
+        put("chr7", new ArrayList<GenomeRange>() {{
+          add(new GenomeRange("chr7", 40, 50));
+        }});
+        put("chr8", new ArrayList<GenomeRange>() {{
+          add(new GenomeRange("chr8", 55, 72));
+        }});
+        put("chr9", new ArrayList<GenomeRange>() {{
+          add(new GenomeRange("chr9", 10, 10));
+        }});
+      }};
+
+      // Get test result.
+      SortedMap<String, List<GenomeRange>> actual = GenomeRangeUtils.getBedRanges(testBED, null);
+
+      assertTrue(GenomeWarpTestUtils.equivalentGenomeRanges(actual, expected));
+    }
+
+    @Test
+    public void testGetBedRanges_filtered() throws Exception {
+      // Define mock BufferedReader
+      String[][] inArray = {
+        {"chr1", "10", "24"},
+        {"chr2", "5", "6"},
+        {"chr3", "9", "10"},
+        {"chr4", "9", "19"},
+        {"chr5", "10", "20"},
+        {"chr6", "30", "40"},
+        {"chr7", "40", "50"},
+        {"chr8", "55", "72"},
+        {"chr9", "10", "10"}};
+      String testStringBED = fakeBED(inArray);
+      InputStream stream = new ByteArrayInputStream(testStringBED.getBytes(StandardCharsets.UTF_8));
+      BufferedReader testBED = new BufferedReader(new InputStreamReader(stream, UTF_8));
+
+      Set<String> chroms = new HashSet<>();
+      chroms.add("chr1");
+      chroms.add("chr4");
+
+      // Define desired result.
+      SortedMap<String, List<GenomeRange>> expected = new TreeMap<String, List<GenomeRange>>() {{
+        put("chr1", new ArrayList<GenomeRange>() {{
+            add(new GenomeRange("chr1", 10, 24));
+        }});
+        put("chr4", new ArrayList<GenomeRange>() {{
+          add(new GenomeRange("chr4", 9, 19));
+        }});
+      }};
+
+      // Get test result.
+      SortedMap<String, List<GenomeRange>> actual = GenomeRangeUtils.getBedRanges(testBED, chroms);
+
+      assertTrue(GenomeWarpTestUtils.equivalentGenomeRanges(actual, expected));
+    }
+
+    @Test
+    public void testEnsureSortedMergedRanges() {
+      SortedMap<String, List<GenomeRange>> input = new TreeMap<String, List<GenomeRange>>() {{
+        put("chr1", new ArrayList<GenomeRange>() {{
+            add(new GenomeRange("chr1", 10, 24));
+            add(new GenomeRange("chr1", 24, 30));
+            add(new GenomeRange("chr1", 100, 300));
+        }});
+        put("chr4", new ArrayList<GenomeRange>() {{
+          add(new GenomeRange("chr4", 9, 19));
+        }});
+      }};
+
+      assertTrue(GenomeRangeUtils.ensureSortedMergedRanges(input));
+    }
+
+    @Test
+    public void testCreateSortedMergedRanges() {
+      SortedMap<String, List<GenomeRange>> actual = new TreeMap<String, List<GenomeRange>>() {{
+        put("chr1", new ArrayList<GenomeRange>() {{
+            add(new GenomeRange("chr1", 10, 24));
+            add(new GenomeRange("chr1", 15, 27));
+            add(new GenomeRange("chr1", 27, 30));
+            add(new GenomeRange("chr1", 200, 300));
+        }});
+        put("chr4", new ArrayList<GenomeRange>() {{
+          add(new GenomeRange("chr4", 209, 309));
+        }});
+      }};
+
+      SortedMap<String, List<GenomeRange>> expected = new TreeMap<String, List<GenomeRange>>() {{
+        put("chr1", new ArrayList<GenomeRange>() {{
+            add(new GenomeRange("chr1", 10, 30));
+            add(new GenomeRange("chr1", 200, 300));
+        }});
+        put("chr4", new ArrayList<GenomeRange>() {{
+          add(new GenomeRange("chr4", 209, 309));
+        }});
+      }};
+
+      // Mutates the map to merge inputs.
+      GenomeRangeUtils.createSortedMergedRanges(actual);
+
+      assertTrue(GenomeWarpTestUtils.equivalentGenomeRanges(actual, expected));
+    }
+
+    @Test
+    public void testSplitAtNonDNA() throws Exception {
+      Fasta testFasta =
+          new Fasta(GenomeWarpSerialTest.class.getClassLoader().getResource(FASTA_PATH).getFile());
+
+      // Define input map.
+      SortedMap<String, List<GenomeRange>> input = new TreeMap<String, List<GenomeRange>>() {{
+        put("chr1", new ArrayList<GenomeRange>() {{
+            add(new GenomeRange("chr1", 10, 24));
+        }});
+        put("chr2", new ArrayList<GenomeRange>() {{
+          add(new GenomeRange("chr2", 5, 6));
+        }});
+        put("chr3", new ArrayList<GenomeRange>() {{
+          add(new GenomeRange("chr3", 9, 10));
+        }});
+        put("chr4", new ArrayList<GenomeRange>() {{
+          add(new GenomeRange("chr4", 9, 19));
+        }});
+        put("chr5", new ArrayList<GenomeRange>() {{
+          add(new GenomeRange("chr5", 10, 20));
+        }});
+        put("chr6", new ArrayList<GenomeRange>() {{
+          add(new GenomeRange("chr6", 30, 40));
+        }});
+        put("chr7", new ArrayList<GenomeRange>() {{
+          add(new GenomeRange("chr7", 40, 50));
+        }});
+        put("chr8", new ArrayList<GenomeRange>() {{
+          add(new GenomeRange("chr8", 55, 72));
+        }});
+        put("chr9", new ArrayList<GenomeRange>() {{
+          add(new GenomeRange("chr9", 10, 10));
+        }});
+      }};
+
+      // Define desired result.
+      SortedMap<String, List<GenomeRange>> expected = new TreeMap<String, List<GenomeRange>>() {{
         put("chr1", new ArrayList<GenomeRange>() {{
             add(new GenomeRange("chr1", 10, 24));
         }});
@@ -141,14 +294,11 @@ public final class GenomeWarpSerialTest {
         }});
       }};
 
-      // Get test result
-      SortedMap<String, List<GenomeRange>> got =
-          GenomeRangeUtils.splitAtNonDNA(testFasta, testBED, null);
+      // Get test result.
+      SortedMap<String, List<GenomeRange>> actual =
+          GenomeRangeUtils.splitAtNonDNA(input, testFasta);
 
-      assertEquals(got.size(), want.size());
-      for(String key: got.keySet()) {
-        assertTrue(GenomeWarpTestUtils.equivalentRanges(got.get(key), want.get(key)));
-      }
+      assertTrue(GenomeWarpTestUtils.equivalentGenomeRanges(actual, expected));
     }
 
     @Test

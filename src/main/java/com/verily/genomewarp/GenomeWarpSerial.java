@@ -173,6 +173,11 @@ public final class GenomeWarpSerial {
       + "Otherwise GenomeWarp splits bed regions in order to improve handling of complex genome transformations",
       names = "--simplified_regions_preproc")
     public Boolean simplifiedRegionsPreprocessing = false;
+
+    @Parameter(description = "Allow query BED, or BED derived from gVCF records, to contain "
+        + "overlapping and unsorted records.",
+      names = "--allow_overlapping_bed")
+    public Boolean allowOverlappingBed = false;
 }
 
   // Used exclusively to facilitate storing
@@ -193,7 +198,7 @@ public final class GenomeWarpSerial {
 
   private static final VCFHeaderVersion DEFAULT_VCF_VERSION = VCFHeaderVersion.VCF4_2;
 
-  private static final String GENOME_WARP_VERSION = "GenomeWarp_v1.2.0";
+  private static final String GENOME_WARP_VERSION = "GenomeWarp_v1.2.1";
 
   private static final String VCF_PART_NAME = "/vcfChunk.vcf.part";
 
@@ -484,7 +489,7 @@ public final class GenomeWarpSerial {
    */
   private static List<HomologousRange> processAndSaveBed(String inputBed, String inputVcf,
       Fasta queryFasta,
-      Fasta targetFasta, Set<String> queryChromosomesToRetain) {
+      Fasta targetFasta, Set<String> queryChromosomesToRetain, boolean allowOverlappingBed) {
     // Open necessary readers
     BufferedReader bedReader = null;
     boolean simplifiedPreprocessing = ARGS.simplifiedRegionsPreprocessing;
@@ -496,15 +501,37 @@ public final class GenomeWarpSerial {
           + ex.getMessage());
     }
 
+    // Loads the input BED, ensures it is non-overlapping, and splits it at non-DNA
+    // characters.
+    logger.log(Level.INFO, "Load BED from file.");
+    SortedMap<String, List<GenomeRange>> rawInputBed = null;
+    try {
+      rawInputBed = GenomeRangeUtils.getBedRanges(bedReader, queryChromosomesToRetain);
+    } catch (IOException ex) {
+      GenomeWarpUtils.fail(logger, "failed to read from input bed: " + ex.getMessage());
+    } catch (IllegalArgumentException iae) {
+      GenomeWarpUtils.fail(logger, "input bed error: " + iae.getMessage());
+    }
+
+    if (allowOverlappingBed) {
+      logger.log(Level.INFO, "Performing any required merging of BED records.");
+      GenomeRangeUtils.createSortedMergedRanges(rawInputBed);
+    } else {
+      if (!GenomeRangeUtils.ensureSortedMergedRanges(rawInputBed)) {
+        GenomeWarpUtils.fail(logger,
+            "Input BED error: regions are not all sorted and non-overlapping. This is likely an " +
+            "input error. However, GenomeWarp can sort and de-duplicate regions by including the " +
+            "--allow_overlapping_bed flag and re-running.");
+      }
+    }
+
     // Takes the input BED and splits at non-DNA characters
     logger.log(Level.INFO, "Split DNA at non-DNA characters");
     SortedMap<String, List<GenomeRange>> dnaOnlyInputBEDPerChromosome = null;
     try {
-      if ((dnaOnlyInputBEDPerChromosome = GenomeRangeUtils.splitAtNonDNA(queryFasta, bedReader, queryChromosomesToRetain)) == null) {
-        GenomeWarpUtils.fail(logger, "failed to generate reference genome");
-      }
+      dnaOnlyInputBEDPerChromosome = GenomeRangeUtils.splitAtNonDNA(rawInputBed, queryFasta);
     } catch (IOException ex) {
-      GenomeWarpUtils.fail(logger, "failed to read from input bed: " + ex.getMessage());
+      GenomeWarpUtils.fail(logger, "failed to read from input FASTA: " + ex.getMessage());
     }
 
     /**
@@ -607,10 +634,10 @@ public final class GenomeWarpSerial {
       // regular VCF
       queryVcfToProcess = ARGS.rawQueryVcf;
       queryBedToProcess = ARGS.rawQueryBed;
-    }      
+    }
 
     final Set<String> queryChromsToWarp = parseQueryChromsToWarp(ARGS.queryChromsToWarp);
- 
+
     logger.log(Level.INFO, "Creating FASTA structure and jump table");
     try {
       headerStrings = retrieveVcfHeader(queryVcfToProcess);
@@ -621,7 +648,7 @@ public final class GenomeWarpSerial {
     }
 
     if (!ARGS.onlyGenomeWarp) {
-      namedRegions = processAndSaveBed(queryBedToProcess, queryVcfToProcess, queryFasta, targetFasta, queryChromsToWarp);
+      namedRegions = processAndSaveBed(queryBedToProcess, queryVcfToProcess, queryFasta, targetFasta, queryChromsToWarp, ARGS.allowOverlappingBed);
     } else {
       logger.log(Level.INFO, "Region data from files");
       BufferedReader regionsFile = null;

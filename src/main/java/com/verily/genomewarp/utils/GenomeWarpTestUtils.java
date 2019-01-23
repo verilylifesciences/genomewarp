@@ -154,6 +154,22 @@ public class GenomeWarpTestUtils {
     return true;
   }
 
+  public static boolean equivalentGenomeRanges(Map<String, List<GenomeRange>> first,
+      Map<String, List<GenomeRange>> second) {
+    if (first.size() != second.size()) {
+      return false;
+    }
+    for (String key : first.keySet()) {
+      if (!second.containsKey(key)) {
+        return false;
+      }
+      if (!equivalentRanges(first.get(key), second.get(key))) {
+        return false;
+      }
+    }
+    return true;
+  }
+
   /*
    * Build truth variants
    *
