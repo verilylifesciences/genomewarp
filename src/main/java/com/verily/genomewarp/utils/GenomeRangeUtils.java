@@ -36,7 +36,7 @@ public class GenomeRangeUtils {
    * @param queryChroms the set of query chromosomes to include
    * @return a hashmap of chromosome to List of GenomeRanges on the requested chromosomes.
    * @throws IllegalArgumentException if the BED does not have all ranges from a single chromosome
-   *   together.
+   *   in a contiguous block in the file.
    */
   public static SortedMap<String, List<GenomeRange>> getBedRanges(BufferedReader bed, Set<String> queryChroms) throws IllegalArgumentException, IOException {
     String line;
