@@ -508,9 +508,9 @@ public final class GenomeWarpSerial {
     try {
       rawInputBed = GenomeRangeUtils.getBedRanges(bedReader, queryChromosomesToRetain);
     } catch (IOException ex) {
-      GenomeWarpUtils.fail(logger, "failed to read from input bed: " + ex.getMessage());
+      GenomeWarpUtils.fail(logger, "Failed to read from input bed: " + ex.getMessage());
     } catch (IllegalArgumentException iae) {
-      GenomeWarpUtils.fail(logger, "input bed error: " + iae.getMessage());
+      GenomeWarpUtils.fail(logger, "Input bed error: " + iae.getMessage());
     }
 
     if (allowOverlappingBed) {
@@ -531,7 +531,7 @@ public final class GenomeWarpSerial {
     try {
       dnaOnlyInputBEDPerChromosome = GenomeRangeUtils.splitAtNonDNA(rawInputBed, queryFasta);
     } catch (IOException ex) {
-      GenomeWarpUtils.fail(logger, "failed to read from input FASTA: " + ex.getMessage());
+      GenomeWarpUtils.fail(logger, "Failed to read from input FASTA: " + ex.getMessage());
     }
 
     /**
