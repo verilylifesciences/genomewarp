@@ -531,7 +531,7 @@ public final class GenomeWarpSerial {
     try {
       dnaOnlyInputBEDPerChromosome = GenomeRangeUtils.splitAtNonDNA(rawInputBed, queryFasta);
     } catch (IOException ex) {
-      GenomeWarpUtils.fail(logger, "failed to read from input FASTA: " + ex.getMessage());
+      GenomeWarpUtils.fail(logger, "Failed to read from input FASTA: " + ex.getMessage());
     }
 
     /**
