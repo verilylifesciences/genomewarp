@@ -137,6 +137,16 @@ public class GenomeWarpTestUtils {
     return true;
   }
 
+  /**
+   * Returns true if and only if the items in each list are identical.
+   *
+   * This function does not require the ordering of the ranges to be the same,
+   * but does require the counts of each item to be the same.
+   *
+   * @param listOne a list of GenomeRanges to compare.
+   * @param listTwo another list of GenomeRanges to compare.
+   * @returns true iff the lists contain the same elements.
+   */
   public static boolean equivalentRanges(List<GenomeRange> listOne,
       List<GenomeRange> listTwo) {
     if (listOne.size() != listTwo.size()) {
@@ -151,6 +161,33 @@ public class GenomeWarpTestUtils {
       }
     }
 
+    return true;
+  }
+
+  /**
+   * Returns true if and only if the items in each Map are identical.
+   *
+   * This requires the same chromosomes to be present in each Map, and the per-chromosome
+   * ranges to contain the same items. It does not require the ordering of the ranges to be
+   * the same within chromosomes.
+   *
+   * @param first a Map from chromosome -> GenomeRange list to compare.
+   * @param second another Map from chromosome -> GenomeRange list to compare.
+   * @returns true iff the maps contain the same elements.
+   */
+  public static boolean equivalentGenomeRanges(Map<String, List<GenomeRange>> first,
+      Map<String, List<GenomeRange>> second) {
+    if (first.size() != second.size()) {
+      return false;
+    }
+    for (String key : first.keySet()) {
+      if (!second.containsKey(key)) {
+        return false;
+      }
+      if (!equivalentRanges(first.get(key), second.get(key))) {
+        return false;
+      }
+    }
     return true;
   }
 
