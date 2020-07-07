@@ -6,7 +6,8 @@ This is not an official Verily product.
 
 GenomeWarp is a command-line tool that translates genetic variants in
 confidently-called genomic regions from one genome assembly version to another,
-such as from GRCh37 to GRCh38.
+such as from GRCh37 to GRCh38. See https://doi.org/10.1093/bioinformatics/btz218
+for details.
 
 ## Purpose
 
